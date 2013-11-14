@@ -113,6 +113,7 @@ NGX_ALL_MODULES="
     ngx_http_upstream_check_module
     ngx_http_upstream_session_sticky_module
     ngx_http_upstream_consistent_hash_module
+    ngx_http_addrs_keepalive_module
     ngx_http_stub_status_module
     ngx_http_write_filter_module
     ngx_http_header_filter_module

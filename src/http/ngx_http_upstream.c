@@ -580,7 +580,7 @@ ngx_http_upstream_init_request(ngx_http_request_t *r)
 
         if (u->resolved->sockaddr) {
 
-            if (ngx_http_upstream_create_round_robin_peer(r, u->resolved)
+            if (ngx_http_addrs_create_keepalive_peer(r, u->resolved)
                 != NGX_OK)
             {
                 ngx_http_upstream_finalize_request(r, u,
@@ -926,7 +926,7 @@ ngx_http_upstream_resolve_handler(ngx_resolver_ctx_t *ctx)
     }
 #endif
 
-    if (ngx_http_upstream_create_round_robin_peer(r, ur) != NGX_OK) {
+    if (ngx_http_addrs_create_keepalive_peer(r, ur) != NGX_OK) {
         ngx_http_upstream_finalize_request(r, u,
                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
         goto failed;

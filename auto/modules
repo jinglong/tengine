@@ -667,6 +667,10 @@ if [ $HTTP_STUB_STATUS = YES ]; then
     HTTP_SRCS="$HTTP_SRCS src/http/modules/ngx_http_stub_status_module.c"
 fi
 
+HTTP_MODULES="$HTTP_MODULES $HTTP_ADDRS_KEEPALIVE_MODULE"
+HTTP_SRCS="$HTTP_SRCS $HTTP_ADDRS_KEEPALIVE_SRCS"
+
+
 #if [ -r $NGX_OBJS/auto ]; then
 #    . $NGX_OBJS/auto
 #fi
