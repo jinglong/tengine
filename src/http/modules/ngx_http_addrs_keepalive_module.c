@@ -13,8 +13,8 @@ typedef struct {
     ngx_uint_t                         max_cached;
     ngx_msec_t                         keepalive_timeout;
 
-    ngx_queue_t                        cache;
-    ngx_queue_t                        free;
+    ngx_queue_t                       *cache;
+    ngx_queue_t                       *free;
 
 } ngx_http_addrs_keepalive_loc_conf_t;
 
@@ -195,7 +195,7 @@ ngx_http_addrs_get_keepalive_peer(ngx_peer_connection_t *pc, void *data)
 
     /* search cache for suitable connection */
 
-    cache = &kp->conf->cache;
+    cache = kp->conf->cache;
 
     for (q = ngx_queue_head(cache);
          q != ngx_queue_sentinel(cache);
@@ -209,7 +209,7 @@ ngx_http_addrs_get_keepalive_peer(ngx_peer_connection_t *pc, void *data)
             == 0)
         {
             ngx_queue_remove(q);
-            ngx_queue_insert_head(&kp->conf->free, q);
+            ngx_queue_insert_head(kp->conf->free, q);
 
             ngx_log_debug1(NGX_LOG_DEBUG_HTTP, pc->log, 0,
                            "addrs get keepalive peer: using connection %p", c);
@@ -276,9 +276,9 @@ ngx_http_addrs_free_keepalive_peer(ngx_peer_connection_t *pc, void *data,
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, pc->log, 0,
                    "addrs free keepalive peer: saving connection %p", c);
 
-    if (ngx_queue_empty(&kp->conf->free)) {
+    if (ngx_queue_empty(kp->conf->free)) {
 
-        q = ngx_queue_last(&kp->conf->cache);
+        q = ngx_queue_last(kp->conf->cache);
         ngx_queue_remove(q);
 
         item = ngx_queue_data(q, ngx_http_addrs_keepalive_cache_t, queue);
@@ -286,14 +286,14 @@ ngx_http_addrs_free_keepalive_peer(ngx_peer_connection_t *pc, void *data,
         ngx_http_addrs_keepalive_close(item->connection);
 
     } else {
-        q = ngx_queue_head(&kp->conf->free);
+        q = ngx_queue_head(kp->conf->free);
         ngx_queue_remove(q);
 
         item = ngx_queue_data(q, ngx_http_addrs_keepalive_cache_t, queue);
     }
 
     item->connection = c;
-    ngx_queue_insert_head(&kp->conf->cache, q);
+    ngx_queue_insert_head(kp->conf->cache, q);
 
     pc->connection = NULL;
 
@@ -385,7 +385,7 @@ close:
     ngx_http_addrs_keepalive_close(c);
 
     ngx_queue_remove(&item->queue);
-    ngx_queue_insert_head(&conf->free, &item->queue);
+    ngx_queue_insert_head(conf->free, &item->queue);
 }
 
 
@@ -446,13 +446,8 @@ ngx_http_addrs_keepalive_create_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    /*
-     * set by ngx_pcalloc():
-     *
-     *    conf->cache = {NULL, NULL}
-     *    conf->free = {NULL, NULL}
-     */
-
+    conf->cache = NGX_CONF_UNSET_PTR;
+    conf->free = NGX_CONF_UNSET_PTR;
     conf->max_cached = NGX_CONF_UNSET_UINT;
     conf->keepalive_timeout = NGX_CONF_UNSET_MSEC;
 
@@ -466,11 +461,8 @@ ngx_http_addrs_keepalive_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_addrs_keepalive_loc_conf_t  *prev = parent;
     ngx_http_addrs_keepalive_loc_conf_t  *conf = child;
 
-    if (conf->max_cached == NGX_CONF_UNSET_UINT) {
-        conf->cache = prev->cache;
-        conf->free = prev->free;
-    }
-
+    ngx_conf_merge_ptr_value(conf->cache, prev->cache, NULL);
+    ngx_conf_merge_ptr_value(conf->free, prev->free, NULL);
     ngx_conf_merge_uint_value(conf->max_cached, prev->max_cached, 0);
     ngx_conf_merge_msec_value(conf->keepalive_timeout, prev->keepalive_timeout,
                               0);
@@ -507,6 +499,16 @@ ngx_http_addrs_keepalive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     kcf->max_cached = n;
 
+    kcf->cache = ngx_palloc(cf->pool, sizeof(ngx_queue_t));
+    if (kcf->cache == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    kcf->free = ngx_palloc(cf->pool, sizeof(ngx_queue_t));
+    if (kcf->free == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
     /* allocate cache items and add to free queue */
 
     cached = ngx_pcalloc(cf->pool,
@@ -515,11 +517,11 @@ ngx_http_addrs_keepalive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    ngx_queue_init(&kcf->cache);
-    ngx_queue_init(&kcf->free);
+    ngx_queue_init(kcf->cache);
+    ngx_queue_init(kcf->free);
 
     for (i = 0; i < kcf->max_cached; i++) {
-        ngx_queue_insert_head(&kcf->free, &cached[i].queue);
+        ngx_queue_insert_head(kcf->free, &cached[i].queue);
         cached[i].conf = kcf;
     }
 
